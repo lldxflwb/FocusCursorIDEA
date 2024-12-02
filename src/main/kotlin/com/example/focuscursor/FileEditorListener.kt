@@ -7,6 +7,8 @@ import com.google.gson.Gson
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import java.io.IOException
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.fileEditor.TextEditor
 
 class FileEditorListener : FileEditorManagerListener {
     private val client = OkHttpClient()
@@ -15,7 +17,8 @@ class FileEditorListener : FileEditorManagerListener {
     
     data class ProjectInfo(
         val project: String,
-        val file: String
+        val file: String,
+        val line: Int
     )
 
     override fun selectionChanged(event: FileEditorManagerEvent) {
@@ -25,9 +28,15 @@ class FileEditorListener : FileEditorManagerListener {
         val projectPath = project.projectFilePath?.replace("/.idea/misc.xml", "") ?: return
         val projectName = projectPath.split("/").last()
 
+        // 获取当前编辑器
+        val editor = (event.newEditor as? TextEditor)?.editor ?: return
+        // 获取当前光标位置的行号（0-based，所以加1）
+        val currentLine = editor.caretModel.primaryCaret.logicalPosition.line + 1
+
         val projectInfo = ProjectInfo(
             project = projectName,
-            file = newFile.path
+            file = newFile.path,
+            line = currentLine
         )
 
         val requestBody = RequestBody.create(
