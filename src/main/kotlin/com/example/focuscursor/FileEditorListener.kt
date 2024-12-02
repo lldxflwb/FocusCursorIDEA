@@ -9,6 +9,9 @@ import okhttp3.MediaType.Companion.toMediaType
 import java.io.IOException
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.TextEditor
+import com.intellij.openapi.editor.event.CaretListener
+import com.intellij.openapi.editor.event.CaretEvent
+import com.intellij.openapi.vfs.VirtualFile
 
 class FileEditorListener : FileEditorManagerListener {
     private val client = OkHttpClient()
@@ -21,22 +24,14 @@ class FileEditorListener : FileEditorManagerListener {
         val line: Int
     )
 
-    override fun selectionChanged(event: FileEditorManagerEvent) {
-        val project = event.manager.project
-        val newFile = event.newFile ?: return
-        
+    private fun sendProjectInfo(project: Project, file: VirtualFile, line: Int) {
         val projectPath = project.projectFilePath?.replace("/.idea/misc.xml", "") ?: return
         val projectName = projectPath.split("/").last()
 
-        // 获取当前编辑器
-        val editor = (event.newEditor as? TextEditor)?.editor ?: return
-        // 获取当前光标位置的行号（0-based，所以加1）
-        val currentLine = editor.caretModel.primaryCaret.logicalPosition.line + 1
-
         val projectInfo = ProjectInfo(
             project = projectName,
-            file = newFile.path,
-            line = currentLine
+            file = file.path,
+            line = line
         )
 
         val requestBody = RequestBody.create(
@@ -45,7 +40,7 @@ class FileEditorListener : FileEditorManagerListener {
         )
 
         val request = Request.Builder()
-            .url("http://127.0.0.1:8989/focus") // 请替换为您的服务器URL
+            .url("http://127.0.0.1:8989/focus")
             .post(requestBody)
             .build()
 
@@ -60,5 +55,23 @@ class FileEditorListener : FileEditorManagerListener {
                 }
             }
         })
+    }
+
+    override fun selectionChanged(event: FileEditorManagerEvent) {
+        val project = event.manager.project
+        val newFile = event.newFile ?: return
+        val editor = (event.newEditor as? TextEditor)?.editor ?: return
+        
+        // 添加光标监听器
+        editor.caretModel.addCaretListener(object : CaretListener {
+            override fun caretPositionChanged(event: CaretEvent) {
+                val currentLine = event.editor.caretModel.primaryCaret.logicalPosition.line + 1
+                sendProjectInfo(project, newFile, currentLine)
+            }
+        })
+
+        // 初始发送当前位置
+        val currentLine = editor.caretModel.primaryCaret.logicalPosition.line + 1
+        sendProjectInfo(project, newFile, currentLine)
     }
 } 
